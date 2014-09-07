@@ -38,6 +38,8 @@ static const char *const luaX_tokens [] = {
     "end", "false", "for", "function", "goto", "if",
     "in", "local", "nil", "not", "or", "repeat",
     "return", "then", "true", "until", "while",
+    /* my switch reserved words */
+    "switch", "case", "default", "begin",
     "..", "...", "==", ">=", "<=", "~=", "::", "<eof>",
     "<number>", "<name>", "<string>"
 };
