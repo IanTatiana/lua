@@ -593,6 +593,7 @@ static void close_func (LexState *ls) {
 static int block_follow (LexState *ls, int withuntil) {
   switch (ls->t.token) {
     case TK_ELSE: case TK_ELSEIF:
+    case TK_CASE: case TK_DEFAULT:
     case TK_END: case TK_EOS:
       return 1;
     case TK_UNTIL: return withuntil;
@@ -1420,6 +1421,48 @@ static void ifstat (LexState *ls, int line) {
 }
 
 
+static void test_case_block (LexState *ls, int *escapelist, expdesc *val) {
+  /* test_case_block -> CASE cond THEN block */
+  BlockCnt bl;
+  FuncState *fs = ls->fs;
+  expdesc v;
+  int jf;  /* instruction to skip 'then' code (if condition is false) */
+  
+  luaX_next(ls);  /* skip CASE */
+  expr(ls, &v);  /* read condition */
+  luaK_posfix(fs, OPR_EQ, &v, val, ls->linenumber);  /* compare values */
+  
+  checknext(ls, TK_THEN);
+  luaK_goiftrue(ls->fs, &v);  /* skip over block if condition is false */
+  enterblock(fs, &bl, 0);
+  jf = v.f;
+  statlist(ls);  /* `then' part */
+  leaveblock(fs);
+
+  if (ls->t.token == TK_CASE || ls->t.token == TK_DEFAULT)  /* followed by 'case'/'default'? */
+    luaK_concat(fs, escapelist, luaK_jump(fs));  /* must jump over it */
+  luaK_patchtohere(fs, jf);
+}
+
+
+static void switchstat (LexState *ls, int line) {
+  FuncState *fs = ls->fs;
+  int escapelist = NO_JUMP;
+  expdesc v;  
+  luaX_next(ls);  /* skip SWITCH */
+  expr(ls, &v);  /* read cond */
+  luaX_next(ls);  /* skip BEGIN */
+  while (ls->t.token == TK_CASE){
+    expdesc vt = v;
+    test_case_block(ls, &escapelist, &vt);  /* CASE cond THEN block */
+  }
+  if (testnext(ls, TK_DEFAULT))
+    block(ls);  /* 'default' part */
+  check_match(ls, TK_END, TK_SWITCH, line);
+  luaK_patchtohere(fs, escapelist);  /* patch escape list to 'switch' end */
+}
+
+
 static void localfunc (LexState *ls) {
   expdesc b;
   FuncState *fs = ls->fs;
@@ -1581,6 +1624,10 @@ static void statement (LexState *ls) {
     case TK_BREAK:   /* stat -> breakstat */
     case TK_GOTO: {  /* stat -> 'goto' NAME */
       gotostat(ls, luaK_jump(ls->fs));
+      break;
+    }
+    case TK_SWITCH:{
+      switchstat(ls, line);
       break;
     }
     default: {  /* stat -> func | assignment */
