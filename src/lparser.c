@@ -1451,7 +1451,8 @@ static void switchstat (LexState *ls, int line) {
   expdesc v;  
   luaX_next(ls);  /* skip SWITCH */
   expr(ls, &v);  /* read cond */
-  checknext(ls, TK_BEGIN);
+  checknext(ls, TK_BEGIN);  /* check and skip 'begin' */
+  check(ls, TK_CASE);  /* check next token; switch-statement must contain at least one 'case' */ 
   while (ls->t.token == TK_CASE){
     expdesc vt = v;
     test_case_block(ls, &escapelist, &vt);  /* CASE cond THEN block */
